@@ -6,7 +6,7 @@ use Dotlock\EnvFile;
 use Dotlock\Tests\TestCase;
 use Dotlock\Vault;
 
-uses(TestCase::class)->in('Feature');
+pest()->extend(TestCase::class)->in('Feature');
 
 /**
  * A throwaway directory, gone when the process ends.

@@ -5,27 +5,86 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
-  checks:
+  tests:
+    name: Tests - PHP ${{ matrix.php }} ${{ matrix.dependency-version }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
         php: ['8.4', '8.5']
-    name: PHP ${{ matrix.php }}
+        dependency-version: ['']
+        include:
+          # The lowest versions the constraints allow, on the lowest PHP:
+          # proves composer.json is honest about what the package needs.
+          - php: '8.4'
+            dependency-version: '--prefer-lowest'
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
 
-      - uses: shivammathur/setup-php@v2
+      - name: Setup PHP
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # v2
         with:
           php-version: ${{ matrix.php }}
           extensions: sodium
           coverage: none
 
-      - run: composer install --prefer-dist --no-interaction
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
 
-      - run: vendor/bin/pint --test
+      - name: Cache dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: php-${{ matrix.php }}${{ matrix.dependency-version }}-composer-${{ hashFiles('composer.json') }}
+          restore-keys: php-${{ matrix.php }}${{ matrix.dependency-version }}-composer-
 
-      - run: vendor/bin/phpstan analyse
+      - name: Install dependencies
+        run: composer update ${{ matrix.dependency-version }} --prefer-dist --no-interaction
 
-      - run: vendor/bin/pest
+      - name: Tests
+        run: composer test:unit
+
+  checks:
+    name: Lint, types and type coverage
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@accd6127cb78bee3e8082180cb391013d204ef9f # v2
+        with:
+          php-version: '8.5'
+          extensions: sodium
+          coverage: none
+
+      - name: Get Composer cache directory
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache dependencies
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: php-8.5-composer-${{ hashFiles('composer.json') }}
+          restore-keys: php-8.5-composer-
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-interaction
+
+      - name: Coding style
+        run: composer test:lint
+
+      - name: Types
+        run: composer test:types
+
+      - name: Type coverage
+        run: composer test:type-coverage

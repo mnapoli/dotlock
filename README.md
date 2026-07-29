@@ -2,6 +2,10 @@
 
 Encrypted secrets for local Laravel development.
 
+[![CI](https://img.shields.io/github/actions/workflow/status/mnapoli/dotlock/ci.yml?style=flat-square&label=CI)](https://github.com/mnapoli/dotlock/actions)
+[![Latest Version](https://img.shields.io/packagist/v/mnapoli/dotlock.svg?style=flat-square)](https://packagist.org/packages/mnapoli/dotlock)
+[![Total Downloads](https://img.shields.io/packagist/dt/mnapoli/dotlock.svg?style=flat-square)](https://packagist.org/packages/mnapoli/dotlock)
+
 Your OpenAI key, your Stripe test key, that IMAP password — they sit in `.env` in plain text. Every process on your machine can read them: a stray `cat`, an npm install script, a coding agent grepping the project. Dotlock moves them to `.env.secrets`, a file that still looks like dotenv — the names stay readable, only the values are encrypted:
 
 ```dotenv
