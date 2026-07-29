@@ -111,9 +111,17 @@ export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"
 - Values are base64 on one line whatever they contain, so the vault holds things `.env` never could — a multi-line PEM key, a value with quotes or `#` in it.
 - The file is `chmod 0600`, and the passphrase is never stored anywhere. There is no recovery: a secret whose passphrase is lost is lost with it.
 
-## Why not a password manager?
+## Alternatives
 
-Keep using one — for the passphrase. The difference is who does the reading: a password manager is where a *person* keeps secrets, the vault is what a *process* reads on every boot. Fetching from 1Password or the Keychain at boot would mean prompts and latency on every request, and covering only the processes you remembered to wrap. Dotlock loads inside PHP at bootstrap, so `artisan tinker`, a test runner started from your IDE, and a queue worker all get the same environment — instantly, offline.
+**`php artisan env:encrypt`**, built into Laravel. It encrypts the whole `.env` into one `.env.encrypted` blob, meant to be committed and decrypted on the other side. It solves shipping an environment, not protecting your machine: to use it you run `env:decrypt`, and the plaintext `.env` is back on disk. Dotlock encrypts value by value, keeps the names readable, and the decrypted values only ever exist in process memory.
+
+**1Password CLI**: `op run --env-file` injects secrets referenced as `op://vault/item/field` into one command. The limit is coverage: only the processes you remember to wrap get the secrets — `artisan tinker`, a test run started from your IDE, or any artisan command run directly sees nothing. Each invocation also pays the CLI's latency, and often a biometric prompt. Dotlock loads at bootstrap inside PHP, so every entry point gets the same environment, offline and instantly. The two compose well, though: a 1Password vault is the right home for the *passphrase* — `export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"`.
+
+**Apple Keychain**: solid storage, but macOS-only, and nothing connects it to `env()` — you end up writing the wrapper scripts yourself, with the same coverage problem as above. Like 1Password, it is a good place to keep the passphrase rather than the secrets.
+
+**SOPS, git-crypt, Rails-style credentials**: built for the opposite goal — committing encrypted files so a team shares them through git. That brings key management ceremony (an age or GPG key per teammate) and crypto that must survive the file being public in every clone and fork, forever. Dotlock is deliberately local: the file stays on your machine, and the passphrase in your head or your password manager.
+
+The common thread: those tools are where a *person* keeps secrets, or how a *repository* ships them. Dotlock is what a Laravel *process* reads at boot.
 
 ## Requirements
 
