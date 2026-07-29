@@ -1,0 +1,15 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    paths:
+        - src/
+
+    level: 10
+
+    # An ignore that has stopped matching is an ignore nobody removed.
+    reportUnmatchedIgnoredErrors: true
+
+    # A typed property no constructor sets is null until something sets it,
+    # whatever the type says.
+    checkUninitializedProperties: true

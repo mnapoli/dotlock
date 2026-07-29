@@ -1,0 +1,56 @@
+{
+    "name": "mnapoli/dotlock",
+    "description": "Encrypted secrets for local Laravel development: a .env.secrets file whose names stay readable and whose values are sealed",
+    "keywords": ["laravel", "dotenv", "env", "secrets", "encryption", "credentials"],
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Matthieu Napoli",
+            "email": "matthieu@mnapoli.fr"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "ext-sodium": "*",
+        "laravel/framework": "^13.0",
+        "laravel/prompts": "^0.3"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.24",
+        "orchestra/testbench": "^11.0",
+        "pestphp/pest": "^4.1|^5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Dotlock\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Dotlock\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Dotlock\\DotlockServiceProvider"
+            ]
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "check": [
+            "pint --test",
+            "phpstan",
+            "pest"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable"
+}
