@@ -114,7 +114,7 @@ export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"
 
 - **`config:cache` and `optimize` are forbidden while a `.env.secrets` exists.** Caching config resolves every `env()` call and writes the answers to `bootstrap/cache/config.php` in plain text. That would put your secrets on disk in plaintext, so Dotlock blocks it.
 - **Tests don't unlock secrets.** When `APP_ENV` is `testing`, `.env.secrets` are never read even with the passphrase in the environment.
-- **Commands without the passphrase don't have the secrets.** E.g. if Claude Code runs an artisan command, the `.env.secrets` environment variables will be empty. The command will work as long as it doesn't need the secrets (e.g. `php artisan migrate`, etc.) so most of the time there is no problem.
+- **Commands without the passphrase don't have the secrets.** E.g. if Claude Code runs an artisan command, the environment variables of `.env.secrets` will be empty in Laravel. The `artisan` command will work as long as it doesn't need the secrets (e.g. `php artisan migrate`, etc.) so most of the time there is no problem.
 
 ## How it works
 
