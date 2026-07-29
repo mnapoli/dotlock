@@ -131,17 +131,8 @@ It encrypts the whole `.env` into `.env.encrypted` meant to be committed and dec
 
 **1Password CLI**
 
-`op run --env-file` injects secrets referenced as `op://vault/item/field` into one command. The limit is coverage: only the processes you remember to wrap get the secrets — `artisan tinker`, a test run started from your IDE, or any artisan command run directly sees nothing. Each invocation also pays the CLI's latency, and often a biometric prompt. Dotlock loads at bootstrap inside PHP, so every entry point gets the same environment, offline and instantly. The two compose well, though: a 1Password vault is the right home for the *passphrase* — `export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"`.
+In theory, you could set `API_TOKEN="$(op read op://Private/my-app/token)"` in `.env`, but that doesn't work out of the box (`.env` files are parsed, not executed). To make it work, you have to wrap every command with `op run` (`op` is the 1Password CLI). For example `op run --env-file .env -- php artisan tinker`. This is a pain to remember and type. On top of that, some values live in `.env` and some in the 1Password vault, which is not the best DX.
 
 **Apple Keychain**
 
-Solid storage, but macOS-only, and nothing connects it to `env()` — you end up writing the wrapper scripts yourself, with the same coverage problem as above. Like 1Password, it is a good place to keep the passphrase rather than the secrets.
-
-## Requirements
-
-- PHP 8.4+ with the sodium extension (bundled by default)
-- Laravel 13
-
-## License
-
-MIT
+The Apple Keychain has a CLI to read secrets, but it is macOS-only and has no integration with `.env` or Laravel. You'd have to run commands like `API_TOKEN="$(security find-generic-password -s my-app -a api-token -w)" php artisan tinker`. And secrets stored this way can be read back silently by any process running as your user, the Keychain doesn't prompt when a malicious script shells out to the same command.
