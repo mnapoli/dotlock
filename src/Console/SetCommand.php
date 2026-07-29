@@ -6,6 +6,7 @@ namespace Dotlock\Console;
 
 use Dotlock\Console\Concerns\AsksForThePassphrase;
 use Dotlock\Console\Concerns\MasksValues;
+use Dotlock\Console\Concerns\NoticesAMissedUnlock;
 use Dotlock\DotlockException;
 use Dotlock\EnvFile;
 use Dotlock\Secrets;
@@ -27,6 +28,7 @@ final class SetCommand extends Command
 {
     use AsksForThePassphrase;
     use MasksValues;
+    use NoticesAMissedUnlock;
 
     protected $signature = 'secrets:set';
 
@@ -110,7 +112,13 @@ final class SetCommand extends Command
             ? "{$name} now holds the new value."
             : "{$name} is encrypted in ".Secrets::FILE.'.');
 
-        return $this->tidyEnv($name, $env, $takenFromEnv, $existing !== null);
+        $result = $this->tidyEnv($name, $env, $takenFromEnv, $existing !== null);
+
+        // Last, so it is the parting word: everything above worked, and none
+        // of it will reach the running app until the boot path is fixed.
+        $this->warnAboutAMissedUnlock($vault, justSet: $name);
+
+        return $result;
     }
 
     /**

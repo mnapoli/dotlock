@@ -84,7 +84,9 @@ final readonly class EnvFile
             throw new DotlockException("{$name} is not set in {$this->path}, so there is nothing to move.");
         }
 
-        if (@file_put_contents($this->path, implode("\n", $lines)) === false) {
+        $written = is_writable($this->path) ? @file_put_contents($this->path, implode("\n", $lines)) : false;
+
+        if ($written === false) {
             throw new DotlockException("Could not write {$this->path}.");
         }
     }
@@ -98,7 +100,7 @@ final readonly class EnvFile
             return [];
         }
 
-        $contents = @file_get_contents($this->path);
+        $contents = is_readable($this->path) ? @file_get_contents($this->path) : false;
 
         if ($contents === false) {
             throw new DotlockException("{$this->path} exists but could not be read.");

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Dotlock\Console;
 
 use Dotlock\Console\Concerns\MasksValues;
+use Dotlock\Console\Concerns\NoticesAMissedUnlock;
 use Dotlock\Secrets;
 use Illuminate\Console\Command;
 
@@ -19,6 +20,7 @@ use Illuminate\Console\Command;
 final class ListCommand extends Command
 {
     use MasksValues;
+    use NoticesAMissedUnlock;
 
     protected $signature = 'secrets:list';
 
@@ -52,7 +54,9 @@ final class ListCommand extends Command
         $this->newLine();
         $this->table($shadowed === [] ? ['Name', 'Value'] : ['Name', 'Value', ''], $rows);
 
-        if (! Secrets::isUnlocked()) {
+        // The broken-boot diagnosis first: telling somebody to set a key they
+        // have already set would be the tool contradicting itself.
+        if (! $this->warnAboutAMissedUnlock($vault) && ! Secrets::isUnlocked()) {
             $this->components->info('Locked. Set '.Secrets::KEY.' to see the values.');
         }
 

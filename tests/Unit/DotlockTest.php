@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Dotlock\Cipher;
 use Dotlock\DotlockException;
 use Dotlock\Secrets;
 use Dotlock\Vault;
@@ -91,6 +92,75 @@ it('leaves the other secrets alone when one is forgotten', function () {
         ->and($vault->open('pass'))->toBe(['KEEP' => 'kept']);
 });
 
+it('will not pretend to forget a secret it never had', function () {
+    $vault = fastVault(scratchDir());
+    $vault->put('KEEP', 'kept', 'pass');
+
+    expect(fn () => $vault->forget('MISSING', 'pass'))
+        ->toThrow(DotlockException::class, 'no secret called');
+});
+
+it('will not rekey with a passphrase that was never the one', function () {
+    $vault = fastVault(scratchDir());
+    $vault->put('SECRET', 'value', 'right');
+
+    expect(fn () => $vault->rekey('wrong', 'new'))
+        ->toThrow(DotlockException::class, 'not the passphrase');
+
+    expect($vault->open('right'))->toBe(['SECRET' => 'value']);
+});
+
+it('treats a header it cannot make sense of as a vault it cannot open', function () {
+    $dir = scratchDir();
+    $vault = fastVault($dir);
+    $vault->put('SECRET', 'value', 'right');
+
+    $file = $dir.'/.env.secrets';
+    $pristine = file_get_contents($file);
+
+    // A version this code does not speak.
+    file_put_contents($file, preg_replace('/^'.Vault::META.'="v1:/m', Vault::META.'="v9:', $pristine));
+    expect($vault->open('right'))->toBeNull();
+
+    // A salt that is not base64 at all.
+    file_put_contents($file, preg_replace('/^'.Vault::META.'="v1:[^:]+:/m', Vault::META.'="v1:!!!:', $pristine));
+    expect($vault->open('right'))->toBeNull();
+
+    // Reading degrades to locked; writing through it is refused loudly, since
+    // a write that carried on would seal the new value inside a broken file.
+    expect(fn () => $vault->put('OTHER', 'value', 'right'))
+        ->toThrow(DotlockException::class, 'not a secrets file');
+});
+
+it('fails loudly when it cannot write next to the vault', function () {
+    $dir = scratchDir();
+    $vault = fastVault($dir);
+    $vault->put('SECRET', 'value', 'right');
+
+    chmod($dir, 0500);
+
+    try {
+        expect(fn () => $vault->put('OTHER', 'value', 'right'))
+            ->toThrow(DotlockException::class, 'Could not write next to '.$vault->path());
+    } finally {
+        chmod($dir, 0700);
+    }
+});
+
+it('says when the vault exists but cannot be read', function () {
+    $dir = scratchDir();
+    $vault = fastVault($dir);
+    $vault->put('SECRET', 'value', 'right');
+
+    chmod($dir.'/.env.secrets', 0000);
+
+    try {
+        expect(fn () => $vault->names())->toThrow(DotlockException::class, 'could not be read');
+    } finally {
+        chmod($dir.'/.env.secrets', 0600);
+    }
+});
+
 it('records the cost settings it used, so the file can still be opened when the default changes', function () {
     $dir = scratchDir();
 
@@ -112,6 +182,24 @@ it('will not let a secret be called the name the header uses', function () {
         ->toThrow(DotlockException::class);
 });
 
+it('refuses inputs the file format could never produce', function () {
+    // Each of these guards a way a tampered header could reach the cipher:
+    // a truncated salt, settings weakened to nothing, a key cut short.
+    expect(fn () => Cipher::deriveKey('pass', 'short-salt', 1, 8192))
+        ->toThrow(DotlockException::class, 'salt of the wrong size')
+        ->and(fn () => Cipher::deriveKey('pass', Cipher::salt(), 0, 8192))
+        ->toThrow(DotlockException::class, 'too weak')
+        ->and(fn () => Cipher::deriveKey('', Cipher::salt(), 1, 8192))
+        ->toThrow(DotlockException::class, 'empty passphrase')
+        ->and(fn () => Cipher::seal('value', 'short-key'))
+        ->toThrow(DotlockException::class, 'wrong size');
+
+    // And a value that is not even base64, or too short to hold a nonce, is
+    // answered with null the same way a failed MAC is.
+    expect(Cipher::open('not base64 !!!', Cipher::newKey()))->toBeNull()
+        ->and(Cipher::open(base64_encode('short'), Cipher::newKey()))->toBeNull();
+});
+
 it('reads a .env the way dotenv does', function () {
     $env = scratchEnv(scratchDir(), <<<'ENV'
         PLAIN=abc
@@ -122,6 +210,7 @@ it('reads a .env the way dotenv does', function () {
         export EXPORTED_TOO=value
         EMPTY=
         # COMMENTED=nope
+        a line that assigns nothing at all
         ENV);
 
     expect($env->values())->toBe([
@@ -171,6 +260,69 @@ it('says which names .env still sets', function () {
         ->and($env->has('NOT_SET'))->toBeFalse()
         ->and(fn () => $env->moveOut('NOT_SET', '# note'))
         ->toThrow(DotlockException::class, 'nothing to move');
+});
+
+it('reports a .env it cannot read or cannot write', function () {
+    $dir = scratchDir();
+    $env = scratchEnv($dir, "API_TOKEN=value\n");
+
+    chmod($env->path(), 0000);
+
+    try {
+        expect(fn () => $env->values())->toThrow(DotlockException::class, 'could not be read');
+    } finally {
+        chmod($env->path(), 0600);
+    }
+
+    chmod($env->path(), 0400);
+
+    try {
+        expect(fn () => $env->moveOut('API_TOKEN', '# moved'))
+            ->toThrow(DotlockException::class, 'Could not write');
+    } finally {
+        chmod($env->path(), 0600);
+    }
+});
+
+it('unlocks for real outside a test run', function () {
+    $dir = scratchDir();
+    $name = uniqueName();
+
+    fastVault($dir)->put($name, 'value', 'right');
+
+    // Make this process look like a normal boot for a moment. The guard reads
+    // APP_ENV from all three sources, so all three are moved aside.
+    $server = $_SERVER['APP_ENV'] ?? null;
+    $env = $_ENV['APP_ENV'] ?? null;
+    $exported = getenv('APP_ENV');
+
+    unset($_SERVER['APP_ENV'], $_ENV['APP_ENV']);
+    putenv('APP_ENV');
+    $_SERVER[Secrets::KEY] = 'right';
+
+    try {
+        Secrets::unlock($dir);
+
+        expect(getenv($name))->toBe('value')
+            ->and(Secrets::isUnlocked())->toBeTrue()
+            ->and(Secrets::loaded())->toContain($name);
+    } finally {
+        if ($server !== null) {
+            $_SERVER['APP_ENV'] = $server;
+        }
+
+        if ($env !== null) {
+            $_ENV['APP_ENV'] = $env;
+        }
+
+        if ($exported !== false) {
+            putenv('APP_ENV='.$exported);
+        }
+
+        unset($_SERVER[Secrets::KEY]);
+        putenv($name);
+        unset($_SERVER[$name], $_ENV[$name]);
+    }
 });
 
 it('never overwrites something the environment already sets', function () {

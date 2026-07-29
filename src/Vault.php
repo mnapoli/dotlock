@@ -326,7 +326,7 @@ final readonly class Vault
 
         // Opened exclusively and locked down before a single byte goes in, so
         // there is no moment where the file exists and is world readable.
-        $handle = @fopen($temporary, 'x');
+        $handle = is_writable(dirname($temporary)) ? @fopen($temporary, 'x') : false;
 
         if ($handle === false) {
             throw new DotlockException("Could not write next to {$this->path}.");
@@ -389,7 +389,9 @@ final readonly class Vault
             return [];
         }
 
-        $contents = @file_get_contents($this->path);
+        // `is_readable` is asked first so that a permissions problem arrives
+        // as one clean sentence, not as a PHP warning with a sentence after it.
+        $contents = is_readable($this->path) ? @file_get_contents($this->path) : false;
 
         if ($contents === false) {
             throw new DotlockException("{$this->path} exists but could not be read.");

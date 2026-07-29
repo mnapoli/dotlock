@@ -9,6 +9,12 @@
             "email": "matthieu@mnapoli.fr"
         }
     ],
+    "funding": [
+        {
+            "type": "github",
+            "url": "https://github.com/sponsors/mnapoli"
+        }
+    ],
     "require": {
         "php": "^8.4",
         "ext-sodium": "*",
@@ -54,12 +60,14 @@
         ],
         "test:types": "phpstan",
         "test:type-coverage": "pest --type-coverage --min=100",
+        "test:coverage": "pest --coverage --min=85",
         "test:unit": "pest",
         "test": [
             "@test:lint",
             "@test:types",
             "@test:type-coverage",
-            "@test:unit"
+            "@test:unit",
+            "@test:coverage"
         ]
     },
     "config": {
