@@ -1,6 +1,6 @@
 {
     "name": "mnapoli/dotlock",
-    "description": "Encrypted secrets for local Laravel development: a .env.secrets file whose names stay readable and whose values are sealed",
+    "description": "Secure secrets for local Laravel development",
     "keywords": ["laravel", "dotenv", "env", "secrets", "encryption", "credentials"],
     "license": "MIT",
     "authors": [
