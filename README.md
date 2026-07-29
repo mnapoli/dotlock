@@ -34,6 +34,9 @@ Dotlock prompts for your passphrase, decrypts the values, and the usual Laravel 
 
 **Laravel then runs as usual**. Nothing else in the application changes.
 
+> [!NOTE]
+> Dotlock works with `php artisan dev`, it doesn't work with Herd or Valet. Their PHP-FPM is started by the OS, not by your shell, so we cannot inject the secrets into their environment.
+
 ## Install
 
 ```sh
@@ -98,7 +101,7 @@ Other commands:
 | `secrets:forget NAME` | Forget a secret                                        |
 | `secrets:rekey`       | Change the passphrase without rewriting a single value |
 
-For non-interactive use (scripts, a shell you trust…), export the passphrase in `APP_SECRETS_KEY` (every artisan command and request unlock the secrets automatically):
+For non-interactive use (scripts, a shell you trust…), export the passphrase in `APP_SECRETS_KEY` (every artisan command unlocks the secrets automatically):
 
 ```sh
 export APP_SECRETS_KEY="your passphrase"
@@ -115,6 +118,7 @@ export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"
 - **`config:cache` and `optimize` are forbidden while a `.env.secrets` exists.** Caching config resolves every `env()` call and writes the answers to `bootstrap/cache/config.php` in plain text. That would put your secrets on disk in plaintext, so Dotlock blocks it.
 - **Tests don't unlock secrets.** When `APP_ENV` is `testing`, `.env.secrets` are never read even with the passphrase in the environment.
 - **Commands without the passphrase don't have the secrets.** E.g. if Claude Code runs an artisan command, the environment variables of `.env.secrets` will be empty in Laravel. The `artisan` command will work as long as it doesn't need the secrets (e.g. `php artisan migrate`, etc.) so most of the time there is no problem.
+- **Requests served by Herd or Valet do not unlock secrets.** Their PHP-FPM is started by the OS, not by your shell, so it never sees `APP_SECRETS_KEY`.
 
 ## How it works
 
