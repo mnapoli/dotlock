@@ -30,7 +30,7 @@ php artisan dev
  └──────────────────────────────────────────────────────────────┘
 ```
 
-Dotlock prompts for your passphrase, decrypts the values, and the usual Laravel dev processes start with the secrets in their environment variables.
+Dotlock prompts for your passphrase, decrypts the values, and the usual Laravel dev processes start with the secrets in their environment variables. Secrets are never written to disk.
 
 **Laravel then runs as usual**. Nothing else in the application changes.
 
@@ -56,17 +56,30 @@ Then add the file to `.gitignore`:
 .env.secrets
 ```
 
-The values are encrypted, but a secrets file in git history doesn't make sense.
+You _could_ commit it to share the secrets with teammates, but you'd have to share the passphrase and everyone would share the same secrets.
 
 ## Usage
 
-Move a secret out of `.env`:
+Import a secret from `.env` or add a new one:
 
 ```sh
 php artisan secrets:set
+
+ ┌ Which environment variable? ─────────────────────────────────┐
+ │ API_TOKEN                                                  ⌄ │
+ └──────────────────────────────────────────────────────────────┘
+  Names in .env and names already encrypted are both offered. A new one is fine too.
+  
+ ┌ Value for API_TOKEN ─────────────────────────────────────────┐
+ │ ••••••••••••••••••                                           │
+ └──────────────────────────────────────────────────────────────┘
+
+ ┌ Passphrase ──────────────────────────────────────────────────┐
+ │ •••••••••                                                    │
+ └──────────────────────────────────────────────────────────────┘
 ```
 
-It offers the names from `.env` and the names already encrypted, asks which value to take, and asks for a passphrase (created on first use). The vault is written and proven readable *before* the `.env` line is replaced with a note saying where the value went — the worst possible outcome is the secret existing in both places, never in neither.
+If the secret was already in `.env`, it is moved to `.env.secrets`. The passphrase is your password that unlocks everything, it is never stored anywhere, remember it!
 
 Start working:
 
@@ -74,42 +87,39 @@ Start working:
 php artisan dev
 ```
 
-`dev` asks for the passphrase once, then hands the decrypted values — not the passphrase — to everything it starts: the server, the queue worker, vite. This is the only command that ever prompts.
+Other commands:
 
-The rest:
+| Command               |                                                        |
+|-----------------------|--------------------------------------------------------|
+| `secrets:list`        | List the secret names, not the values                  |
+| `secrets:get NAME`    | Retrieve a secret value                                |
+| `secrets:forget NAME` | Forget a secret                                        |
+| `secrets:rekey`       | Change the passphrase without rewriting a single value |
 
-| Command | What it does |
-|-|-|
-| `secrets:list` | The names, without asking for anything |
-| `secrets:get NAME` | One value, masked; `--show` prints it in the clear |
-| `secrets:forget NAME` | Removes it for good — it is not written back to `.env` |
-| `secrets:rekey` | Changes the passphrase without rewriting a single value |
-
-For non-interactive use — scripts, a shell you trust — export the passphrase and every artisan command and request unlocks silently:
+For non-interactive use (scripts, a shell you trust…), export the passphrase in `APP_SECRETS_KEY` (every artisan command and request unlock the secrets automatically):
 
 ```sh
 export APP_SECRETS_KEY="your passphrase"
 ```
 
-Read it from your password manager rather than typing it into shell history, e.g. with 1Password:
+You can also read it from your password manager rather than typing it into shell history, e.g. with 1Password:
 
 ```sh
 export APP_SECRETS_KEY="$(op read op://Private/my-app/passphrase)"
 ```
 
-## What it refuses to do
+## Limits
 
-**`config:cache` and `optimize` fail while a vault exists.** Caching config resolves every `env()` call and writes the answers to `bootstrap/cache/config.php` in plain text. Unlocked, that puts your secrets on disk in the clear — in a file nobody thinks to check. Locked, it freezes them as `null` forever. Neither is allowed to happen by accident. This is a local-development tool; production config caching belongs to real environment variables.
+**`config:cache` and `optimize` are forbidden while a `.env.secrets` exists.** Caching config resolves every `env()` call and writes the answers to `bootstrap/cache/config.php` in plain text. That would put your secrets on disk in plaintext, so Dotlock blocks it.
 
-**Tests never unlock.** When `APP_ENV` is `testing`, the vault stays shut even with the right passphrase in the environment. Real credentials have no business in a process whose entire job is to fake things.
+**Tests never unlock secrets.** When `APP_ENV` is `testing`, `.env.secrets` are never read even with the passphrase in the environment.
 
 ## How it works
 
 - The passphrase is stretched with **Argon2id** into a key that opens one thing: a random **master key** kept encrypted in the file's header. The master key encrypts the values with **XSalsa20-Poly1305** (libsodium's `secretbox`). Changing the passphrase rewrites one line, not every value.
-- Encryption is authenticated, so a wrong passphrase and a corrupted file are detected outright — the vault can never hand back plausible-looking garbage.
-- Every write goes to a temporary file first, is re-opened from disk using only the passphrase, and checked value by value. Only then does it replace the real file. A failed write changes nothing.
-- Values are base64 on one line whatever they contain, so the vault holds things `.env` never could — a multi-line PEM key, a value with quotes or `#` in it.
-- The file is `chmod 0600`, and the passphrase is never stored anywhere. There is no recovery: a secret whose passphrase is lost is lost with it.
+- Encryption is authenticated, so a wrong passphrase and a corrupted file are detected outright, the vault can never hand back plausible-looking garbage.
+- Values are base64 on one line whatever they contain, so the vault can hold variables with any value (unlike `.env`): a multi-line PEM key, a value with quotes or `#` in it.
+- The file is `chmod 0600`, and the passphrase is never stored anywhere. There is no recovery if the passphrase is lost.
 
 ## Alternatives
 
