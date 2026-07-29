@@ -1,23 +1,38 @@
-# Dotlock
+<p align="center">
+    <img src="./art/illustration.png" alt="dotlock" width="540">
+</p>
 
-Encrypted secrets for local Laravel development.
+## The problem
 
-[![CI](https://img.shields.io/github/actions/workflow/status/mnapoli/dotlock/ci.yml?style=flat-square&label=CI)](https://github.com/mnapoli/dotlock/actions)
-[![Latest Version](https://img.shields.io/packagist/v/mnapoli/dotlock.svg?style=flat-square)](https://packagist.org/packages/mnapoli/dotlock)
-[![Total Downloads](https://img.shields.io/packagist/dt/mnapoli/dotlock.svg?style=flat-square)](https://packagist.org/packages/mnapoli/dotlock)
+Some projects need secrets to work locally: an OpenAI key, a Stripe test key, a sandbox API token password…
 
-Your OpenAI key, your Stripe test key, that IMAP password — they sit in `.env` in plain text. Every process on your machine can read them: a stray `cat`, an npm install script, a coding agent grepping the project. Dotlock moves them to `.env.secrets`, a file that still looks like dotenv — the names stay readable, only the values are encrypted:
+They sit in `.env` or `~/.bashrc` in plain text. Every process on your machine can read them: a malicious dependency, a rogue agent, a compromised application.
+
+## The solution
+
+Dotlock moves them to `.env.secrets`, a gitignored file that looks like `.env` but the values are encrypted with a passphrase you choose:
 
 ```dotenv
-# Dotlock v1. Values are encrypted; do not edit by hand.
-DOTLOCK_META="v1:hz1yIu0…"
+# .env.secrets
 OPENAI_API_KEY="mvGOEc0Vf1Xh0…"
 STRIPE_SECRET="Tir/AHfuTgKoS…"
 ```
 
-The secrets load back into the environment at boot, before Laravel builds its config, so `env()`, `config()` and everything downstream work exactly as before. Nothing else in the application changes.
+Now run `php artisan dev`:
 
-One rule governs everything: **locked means unset**. No passphrase, wrong passphrase, damaged file — the variables are simply absent, exactly as if they were never configured. Nothing prompts at boot, nothing blocks, nothing throws. A cron job can't hang on a question; a missing token fails the way it always failed.
+```sh
+php artisan dev
+
+   2 encrypted secrets to unlock.  
+
+ ┌ Passphrase ──────────────────────────────────────────────────┐
+ │                                                              │
+ └──────────────────────────────────────────────────────────────┘
+```
+
+Dotlock prompts for your passphrase, decrypts the values, and the usual Laravel dev processes start with the secrets in their environment variables.
+
+**Laravel then runs as usual**. Nothing else in the application changes.
 
 ## Install
 
@@ -25,7 +40,7 @@ One rule governs everything: **locked means unset**. No passphrase, wrong passph
 composer require --dev mnapoli/dotlock
 ```
 
-Add one line at the top of `bootstrap/app.php`, before `Application::configure()`:
+Add this at the top of `bootstrap/app.php`, before `Application::configure()`:
 
 ```php
 // Load encrypted secrets into the environment, before config is built.
@@ -35,15 +50,13 @@ if (class_exists(\Dotlock\Secrets::class)) {
 }
 ```
 
-It has to live there: `config/services.php` reads `env()` while Laravel boots, and a service provider runs too late to matter. `bootstrap/app.php` is the one file both `public/index.php` and `artisan` pass through in time. The `class_exists` guard is what lets the package stay in `require-dev`.
-
 Then add the file to `.gitignore`:
 
 ```
 .env.secrets
 ```
 
-The values are encrypted, but a secrets file in git history is still a file you can never take back.
+The values are encrypted, but a secrets file in git history doesn't make sense.
 
 ## Usage
 
