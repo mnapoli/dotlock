@@ -10,7 +10,7 @@ They sit in `.env` or `~/.bashrc` in plain text. Every process on your machine c
 
 ## The solution
 
-Dotlock moves them to `.env.secrets`, a gitignored file that looks like `.env` but the values are encrypted with a passphrase you choose:
+Dotlock moves secrets to `.env.secrets`, a gitignored file that looks like `.env` but the values are encrypted with a passphrase you choose:
 
 ```dotenv
 # .env.secrets
